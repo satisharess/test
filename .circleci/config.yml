@@ -11,13 +11,16 @@ jobs:
     executor: java-executor
     steps:
       - checkout
+
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "pom.xml" }}
             - v1-dependencies-
+
       - run:
           name: Build with Maven
-          command: mvn -B clean compile
+          command: mvn -B clean package
+
       - save_cache:
           paths:
             - ~/.m2
@@ -35,11 +38,25 @@ jobs:
           name: Run Tests
           command: mvn test
 
+  docker_build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t springboot-docker-demo:latest .
+
 workflows:
   version: 2
-  build_and_test:
+  build_test_and_dockerize:
     jobs:
       - build
       - test:
           requires:
             - build
+      - docker_build:
+          requires:
+            - test
