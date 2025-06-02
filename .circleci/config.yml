@@ -18,7 +18,7 @@ jobs:
             - v1-dependencies-
 
       - run:
-          name: Build with Maven
+          name: Build JAR with Maven
           command: mvn -B clean package
 
       - save_cache:
@@ -26,37 +26,63 @@ jobs:
             - ~/.m2
           key: v1-dependencies-{{ checksum "pom.xml" }}
 
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/springboot-docker-demo.jar
+
+      - store_artifacts:
+          path: target/springboot-docker-demo.jar
+          destination: app-jar
+
   test:
     executor: java-executor
     steps:
       - checkout
+
+      - attach_workspace:
+          at: .
+
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "pom.xml" }}
             - v1-dependencies-
+
       - run:
           name: Run Tests
           command: mvn test
 
-  docker_build:
+  dockerize:
     docker:
       - image: cimg/base:stable
     steps:
       - checkout
+
+      - attach_workspace:
+          at: .
+
       - setup_remote_docker
+
       - run:
           name: Build Docker image
-          command: |
-            docker build -t springboot-docker-demo:latest .
+          command: docker build -t springboot-docker-demo .
+
+      - run:
+          name: Save Docker image to file
+          command: docker save springboot-docker-demo -o docker-image.tar
+
+      - store_artifacts:
+          path: docker-image.tar
+          destination: docker-image
 
 workflows:
   version: 2
-  build_test_and_dockerize:
+  build_test_and_save:
     jobs:
       - build
       - test:
           requires:
             - build
-      - docker_build:
+      - dockerize:
           requires:
-            - test
+            - build
